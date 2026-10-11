@@ -46,6 +46,10 @@ jobs:
           ANTLR_HOME: ${{ runner.temp }}/antlr4
         run: |
           make -C asl antlr ANTLR4="java -jar $ANTLR_HOME/antlr-4.7.1-complete.jar"
-          make -C asl CXX=g++ CC=g++ ANTLR_ROOT="$ANTLR_HOME/install"
-          LD_LIBRARY_PATH="$ANTLR_HOME/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            bash -C asl check-examples.sh
+          make -C asl CXX=g++ CC=g++ ANTLR_ROOT="$ANTLR_HOME/install" \
+            ANTLR4="java -jar $ANTLR_HOME/antlr-4.7.1-complete.jar"
+          (
+            cd asl
+            LD_LIBRARY_PATH="$ANTLR_HOME/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+              bash ./check-examples.sh
+          )
