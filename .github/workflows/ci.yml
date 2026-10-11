@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Build the matching ANTLR4 C++ runtime
+        env:
+          ANTLR_VERSION: 4.7.1
+          ANTLR_HOME: ${{ runner.temp }}/antlr4
+        run: |
+          git clone --depth 1 --branch "$ANTLR_VERSION" https://github.com/antlr/antlr4.git "$ANTLR_HOME/source"
+          curl --fail --location --silent --show-error \
+            "https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar" \
+            --output "$ANTLR_HOME/antlr-${ANTLR_VERSION}-complete.jar"
+          cmake -S "$ANTLR_HOME/source/runtime/Cpp" -B "$ANTLR_HOME/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$ANTLR_HOME/install" \
+            -DANTLR_JAR_LOCATION="$ANTLR_HOME/antlr-${ANTLR_VERSION}-complete.jar"
+          cmake --build "$ANTLR_HOME/build" --parallel 2
+          cmake --install "$ANTLR_HOME/build"
+
+      - name: Generate, build, and test the compiler
+        env:
+          ANTLR_HOME: ${{ runner.temp }}/antlr4
+        run: |
+          make -C asl antlr ANTLR4="java -jar $ANTLR_HOME/antlr-4.7.1-complete.jar"
+          make -C asl CXX=g++ CC=g++ ANTLR_ROOT="$ANTLR_HOME/install"
+          LD_LIBRARY_PATH="$ANTLR_HOME/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            bash -C asl check-examples.sh
